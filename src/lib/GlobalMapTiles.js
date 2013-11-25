@@ -64,7 +64,7 @@ GlobalMercator = function()
   {
     var res = this.Resolution(zoom);
     var mx = px * res - this.originShift;
-    var my = py * res - this.originShift;
+    var my = this.originShift - py * res; //Invert - RW
 
     return [mx, my];
   };
@@ -81,10 +81,11 @@ GlobalMercator = function()
   };
 
   //Returns a tile covering region in given pixel coordinates
-  this.PixelsToTile = function (px, py)
+  this.PixelsToTile = function (px, py, zoom)
   {
     var tx = Math.ceil( px / this.tileSize ) - 1;
     var ty = Math.ceil( py / this.tileSize ) - 1;
+
 
     return [tx, ty];
   };
@@ -93,17 +94,19 @@ GlobalMercator = function()
   this.MetersToTile = function(mx, my, zoom)
   {
     var p = this.MetersToPixels(mx, my, zoom);
-
-    return this.PixelsToTile(p[0], p[1]);
+      L
+      return this.PixelsToTile(p[0], p[1], zoom);
   };
+
 
   //Returns bounds of the given tile in EPSG:900913 coordinates
   this.TileBounds = function(tx, ty, zoom)
   {
-    var min = this.PixelsToMeters( tx*this.tileSize, ty*this.tileSize, zoom );
-    var max = this.PixelsToMeters( (tx+1)*this.tileSize, (ty+1)*this.tileSize, zoom );
+    //RW - Update for XYZ
+    var sw = this.PixelsToMeters( tx*this.tileSize, (ty+1)*this.tileSize, zoom );
+    var ne = this.PixelsToMeters( (tx+1)*this.tileSize, (ty)*this.tileSize, zoom );
 
-    return [min[0], min[1], max[0], max[1]];
+    return [sw[0], sw[1], ne[0], ne[1]];
   };
 
   //Returns bounds of the given tile in latutude/longitude using WGS84 datum
@@ -128,7 +131,7 @@ GlobalMercator = function()
   {
     var quadtree = '';
 
-    ty = ((1 << zoom) - 1) - ty;
+    ty = ((1 << zoom) - 1) - ty; //No TMS
     for(var i = zoom; i >= 1; i--)
     {
       var digit = 0;
@@ -169,7 +172,7 @@ GlobalMercator = function()
         ty += mask;
     }
 
-    ty = ((1 << zoom) - 1) - ty;
+    ty = ((1 << zoom) - 1) - ty; //TO TMS?
 
     return [tx, ty];
   };
@@ -179,6 +182,8 @@ GlobalMercator = function()
   {
     var m = this.LatLonToMeters(lat, lon);
     var t = this.MetersToTile(m[0], m[1], zoom);
+
+    
 
     return this.QuadTree(t[0], t[1], zoom);
   };
@@ -233,3 +238,13 @@ GlobalMercator = function()
     return arr;
   };
 };
+
+
+
+///RW Adding this from: http://stackoverflow.com/questions/19029316/how-to-get-tile-for-click-event-in-leaflet-marker-cluster
+
+function getTileURL(lat, lon, zoom) {
+    var xtile = parseInt(Math.floor((lon + 180) / 360 * (1 << zoom)));
+    var ytile = parseInt(Math.floor((1 - Math.log(Math.tan(lat.toRad()) + 1 / Math.cos(lat.toRad())) / Math.PI) / 2 * (1 << zoom)));
+    return "" + zoom + "/" + xtile + "/" + ytile;
+}

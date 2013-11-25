@@ -18,12 +18,105 @@
 
   <script src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.4.3/underscore-min.js"></script>
   <script src="http://cdn.leafletjs.com/leaflet-0.4.5/leaflet-src.js"></script>
-  <script src="lib/Leaflet.ImageOverlay.Canvas.js"></script>
+      <script src="lib/leaflet_Bing.js"></script>
+      <script src="lib/Leaflet.ImageOverlay.Canvas.js"></script>
   <script src="lib/minheap.js"></script>
   <script src="lib/GlobalMapTiles.js"></script>
-  <script src="lib/tile-stitcher.min.js"></script>
+  <script src="lib/tile-stitcher.js"></script>
   <script src="lib/costdistance.min.js"></script>
 
   <script src="js/walkshed.js"></script>
+      <script>
+          //from: http://oms.wff.ch/calc.htm
+          function toxy() {
+
+              var zoom = document.forms.Form1.zoom.value;
+              var vlong = document.forms.Form1.long.value;
+              var vlat = document.forms.Form1.lat.value;
+              document.forms.Form1.xlong.value = long2tile(vlong, zoom);
+              document.forms.Form1.ylat.value = lat2tile(vlat, zoom);
+
+          }
+
+          function tolonlat() {
+
+              var vzoom = document.forms.Form1.zoom.value;
+              var xlong = 3.12;
+              xlong = document.forms.Form1.xlong.value;
+              var ylat = document.forms.Form1.ylat.value;
+              document.forms.Form1.long.value = xlong = tile2long(xlong, vzoom);
+              document.forms.Form1.lat.value = ylat = tile2lat(ylat, vzoom);
+
+          }
+
+          function long2tile(lon, zoom1) {
+              tt = Number(lon);
+              return (Math.floor((tt + 180) / 360 * Math.pow(2, zoom1)));
+          }
+
+          function lat2tile(lat, zoom2) {
+              return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom2)));
+          }
+
+          function tile2long(x, z) {
+              return (x / Math.pow(2, z) * 360 - 180);
+          }
+
+          function tile2lat(y, z) {
+              var n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+              return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+          }
+
+
+          //RW - 
+          //LatLonToMeters
+          function LatLonToMeters(lat, lon) {
+              var mx, my;
+              var originShift = 2 * Math.PI * 6378137 / 2.0;
+              mx = lon * originShift / 180.0;
+              my = Math.log(Math.tan((90 + lat) * Math.PI / 360.0)) / (Math.PI / 180.0);
+              my = my * originShift / 180.0;
+              return {y: my,x: mx};
+          }
+
+          function MetersToLatLon(my, mx) {
+              var originShift = 2 * Math.PI * 6378137 / 2.0;
+              var lon = (mx / originShift) * 180.0;
+              var lat = (my / originShift) * 180.0;
+
+              lat = 180 / Math.PI * (2 * Math.atan(Math.exp(lat * Math.PI / 180.0)) - Math.PI / 2.0);
+              return {y: lat, x: lon};
+          }
+
+          function tile2boundingBox(x, y, zoom) {
+          var bb = {};
+          bb.north = tile2lat(y, zoom);
+          bb.south = tile2lat(y + 1, zoom);
+          bb.west = tile2lon(x, zoom);
+          bb.east = tile2lon(x + 1, zoom);
+          return bb;
+          }
+ 
+          function tile2lon(x,z) {
+              return x / Math.pow(2.0, z) * 360.0 - 180;
+          }
+ 
+          function tile2lat(y, z) {
+              var n = Math.PI - (2.0 * Math.PI * y) / Math.pow(2.0, z);
+              return toDegrees(Math.atan(sinh(n)));
+          }
+
+          function toDegrees(angle) {
+              return angle * (180 / Math.PI);
+          }
+
+          function sinh(aValue) {
+              var myTerm1 = Math.pow(Math.E, aValue);
+              var myTerm2 = Math.pow(Math.E, -aValue);
+
+              return (myTerm1 - myTerm2) / 2;
+          }
+
+      </script>
 </body>
 </html>

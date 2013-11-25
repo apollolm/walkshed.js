@@ -1,19 +1,28 @@
 (function(){
   var zoom = 14,
-      buffer = 1600,
+      buffer = 3200,
       tileSize = 256,
       maxCost = 1600,
       gm = new GlobalMercator(),
-      ts = tileStitcher('tiles/{z}/{x}/{y}.png', {scheme:'tms'}),
+      //ts = tileStitcher('tiles/{z}/{x}/{y}.png', {scheme:'tms'}),
+      ts = tileStitcher('proxy.ashx?http://54.212.254.185:8888/v2/FSPCost/{z}/{x}/{y}.png'),
+          
       map = L.map('map'),
-      layerUrl = 'http://{s}.tiles.mapbox.com/v3/atogle.map-vo4oycva/{z}/{x}/{y}.png',
+      //layerUrl = 'http://{s}.tiles.mapbox.com/v3/atogle.map-vo4oycva/{z}/{x}/{y}.png',
+      layerUrl = 'http://54.212.254.185:8888/v2/FSPCost/{z}/{x}/{y}.png',
       attribution = 'Map data &copy; OpenStreetMap contributors, CC-BY-SA <a href="http://mapbox.com/about/maps" target="_blank">Terms &amp; Feedback</a>',
-      layer = new L.TileLayer(layerUrl, {maxZoom: 17, attribution: attribution, subdomains: 'abcd'}),
+      layer = new L.TileLayer(layerUrl, {opacity: 0.6, maxZoom: 17, attribution: attribution, subdomains: 'abcd'}),
       canvasLayer;
 
+
+
+  var bing = new L.BingLayer("Agq9ShzaLxY_pLNncoi4Haalm7lcMAmo7Tq3NAwuAdPNTdSrmmH85Pmn-jFrxjnU");
+
+
   map
-    .setView([39.9524, -75.1636], 14)
-    .addLayer(layer);
+.setView([2.89, 35.94], 14)
+.addLayer(bing)
+.addLayer(layer);
 
   function to2D(array1D, width) {
     var array2D = [],
@@ -38,7 +47,7 @@
     } else if (percentage <= 0.999) {
       return [215,25,28,200];
     } else {
-      return [0,0,0,0];
+      return [255,0,0,0];
     }
   }
 
@@ -108,43 +117,91 @@
     mapCtx.putImageData(frictionImageData, 0, 0);
   }
 
+  function TMStoXYZ(tile, zoom) {
+      return [tile[0], Math.pow(2, zoom) - (tile[1])];
+  }
+
   map.on('click', function(evt) {
     // NOTE! this is TMS specific logic
-    var originMeters = gm.LatLonToMeters(evt.latlng.lat, evt.latlng.lng),
-        // Southwest, MinX/MinY Tile
-        swTile = gm.MetersToTile(originMeters[0]-buffer, originMeters[1]-buffer, zoom),
-        swTileBoundsMeters = gm.TileBounds(swTile[0], swTile[1], zoom),
-        swTileBoundsLatLng = gm.TileLatLonBounds(swTile[0], swTile[1], zoom),
-        // Northeast, MaxX/MaxY Tile
-        neTile = gm.MetersToTile(originMeters[0]+buffer, originMeters[1]+buffer, zoom),
-        neTileBoundsMeters = gm.TileBounds(neTile[0], neTile[1], zoom),
-        neTileBoundsLatLng = gm.TileLatLonBounds(neTile[0], neTile[1], zoom),
+      //var originMeters = gm.LatLonToMeters(evt.latlng.lat, evt.latlng.lng);
+      var originMeters = LatLonToMeters(evt.latlng.lat, evt.latlng.lng);
+
+      //Add buffer to Meters
+      var swBufferMeters = {dy: originMeters.y - buffer, dx: originMeters.x - buffer}; //Buffer downwards and left from the click point
+
+      var swBufferLatLon = MetersToLatLon(swBufferMeters.dy, swBufferMeters.dx);
+
+      var swTileX = long2tile(swBufferLatLon.x, zoom); //Get extreme left x tile from the SW Buffer
+      var swTileY = lat2tile(swBufferLatLon.y, zoom);//Get extreme bottom y tile from the SW Buffer
+
+      var swXYZ = {y: swTileY, x: swTileX};
+
+      //Get the tile's bounds
+      var swTileBoundsLatLng = tile2boundingBox(swXYZ.x, swXYZ.y, zoom);
+
+      var swTileBoundsMeters = {};
+      swTileBoundsMeters.sw = LatLonToMeters(swTileBoundsLatLng.south, swTileBoundsLatLng.west);
+      swTileBoundsMeters.ne = LatLonToMeters(swTileBoundsLatLng.north, swTileBoundsLatLng.east);
+
+        // Southwest, MinX/MaxY Tile - in TMS it's MinY
+      //var swTile = gm.MetersToTile(originMeters[0] + buffer, originMeters[1] - buffer, zoom);
+
+      ////convert to XYZ
+      //var swXYZ = TMStoXYZ(swTile, zoom);
+
+      //var swTileBoundsMeters = gm.TileBounds(swXYZ[0], swXYZ[1], zoom);
+      //var swTileBoundsLatLng = gm.TileLatLonBounds(swXYZ[0], swXYZ[1], zoom);
+
+      var neBufferMeters = { dy: originMeters.y + buffer, dx: originMeters.x + buffer };
+      var neBufferLatLon = MetersToLatLon(neBufferMeters.dy, neBufferMeters.dx);
+
+      var neTileX = long2tile(neBufferLatLon.x, zoom); //Get extreme right x tile from the NE Buffer
+      var neTileY = lat2tile(neBufferLatLon.y, zoom); //Get extreme top y tile from the NE Buffer
+
+      var neXYZ = { y: neTileY, x: neTileX };
+
+      //Get the tile's bounds
+      var neTileBoundsLatLng = tile2boundingBox(neXYZ.x, neXYZ.y, zoom);
+
+      var neTileBoundsMeters = {};
+      neTileBoundsMeters.sw = LatLonToMeters(neTileBoundsLatLng.south, neTileBoundsLatLng.west);
+      neTileBoundsMeters.ne = LatLonToMeters(neTileBoundsLatLng.north, neTileBoundsLatLng.east);
+
+
+
+      //  // Northeast, MaxX/MinY - in TMS it's maxY
+      //var neTile = gm.MetersToTile(originMeters[0] - buffer, originMeters[1] + buffer, zoom);
+      ////convert to XYZ
+      //var neXYZ = TMStoXYZ(neTile, zoom);
+      //var neTileBoundsMeters = gm.TileBounds(neXYZ[0], neXYZ[1], zoom);
+      //var neTileBoundsLatLng = gm.TileLatLonBounds(neXYZ[0], neXYZ[1], zoom);
 
         costImageData = [],
         pixel = {};
 
-    var xMetersDiff = neTileBoundsMeters[2] - swTileBoundsMeters[0],
-        yMetersDiff = neTileBoundsMeters[3] - swTileBoundsMeters[1],
-        mergedSizeX = (neTile[0] - swTile[0] + 1) * tileSize,
-        mergedSizeY = (neTile[1] - swTile[1] + 1) * tileSize;
+    var xMetersDiff = neTileBoundsMeters.ne.x- swTileBoundsMeters.sw.x,
+        yMetersDiff = neTileBoundsMeters.ne.y - swTileBoundsMeters.sw.y,
+        mergedSizeX = (neXYZ.x - swXYZ.x + 1) * tileSize,
+        mergedSizeY = (swXYZ.y - neXYZ.y + 1) * tileSize;
 
-    pixel.x = Math.round(mergedSizeX * (originMeters[0] - swTileBoundsMeters[0]) / xMetersDiff);
-    pixel.y = mergedSizeY - Math.round(mergedSizeY * (originMeters[1] - swTileBoundsMeters[1]) / yMetersDiff);
+    pixel.x = Math.round(mergedSizeX * (originMeters.x - swTileBoundsMeters.sw.x) / xMetersDiff);
+    pixel.y = mergedSizeY - Math.round(mergedSizeY * (originMeters.y - swTileBoundsMeters.sw.y) / yMetersDiff);
+
 
     // TODO: add setBounds() to canvas layer?
     if (canvasLayer) {
       map.removeLayer(canvasLayer);
     }
-    canvasLayer = L.imageOverlay.canvas(L.latLngBounds([swTileBoundsLatLng[0], swTileBoundsLatLng[1]],[neTileBoundsLatLng[2], neTileBoundsLatLng[3]]));
+    canvasLayer = L.imageOverlay.canvas(L.latLngBounds([swTileBoundsLatLng.south, swTileBoundsLatLng.west], [neTileBoundsLatLng.north, neTileBoundsLatLng.east]));
     canvasLayer.addTo(map);
 
-    ts.stitch(swTile[0], swTile[1], neTile[0], neTile[1], zoom, function(stitchedCanvas){
+    ts.stitch(swXYZ.x, neXYZ.y, neXYZ.x, swXYZ.y, zoom, function (stitchedCanvas) { //west, south, east, north
       draw(stitchedCanvas, canvasLayer.canvas, pixel);
 
       // For debugging:
-      // canvasLayer.canvas.width = stitchedCanvas.width;
-      // canvasLayer.canvas.height = stitchedCanvas.height;
-      // canvasLayer.canvas.getContext('2d').drawImage(stitchedCanvas, 0, 0);
+       //canvasLayer.canvas.width = stitchedCanvas.width;
+       //canvasLayer.canvas.height = stitchedCanvas.height;
+       //canvasLayer.canvas.getContext('2d').drawImage(stitchedCanvas, 0, 0);
     });
   });
 })();
